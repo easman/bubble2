@@ -9,6 +9,7 @@ import android.graphics.Path;
 import android.graphics.Point;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.text.TextPaint;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -21,7 +22,6 @@ import android.widget.TextView;
 
 import java.lang.ref.WeakReference;
 
-import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
 public class Bubble extends FrameLayout implements View.OnClickListener {
@@ -30,14 +30,22 @@ public class Bubble extends FrameLayout implements View.OnClickListener {
     private static final int DEFAULT_RADIUS = 10;
     private static final int DEFAULT_PADDING = 16;
     private static final int DEFAULT_OFFSET = 0;
+    private static final int DEFAULT_IMAGE_WIDTH = 45;
+    private static final int DEFAULT_BUTTON_WIDTH = 35;
+    private static final int DEFAULT_TEXT_MARGIN = 6;
 
     private static WeakReference<Bubble> reference;
 
-    private int mRadius;
-    private FrameLayout.LayoutParams mParams;
+    private TextView mBubbleText;
+    private ImageView mCloseButton;
+    private ImageView mBubbleImage;
 
     private View mAnchorView;
     private ViewGroup mContentView;
+
+    private FrameLayout.LayoutParams mParams;
+
+    private float mTextWidth;
 
     /**
      * Triangle
@@ -60,19 +68,23 @@ public class Bubble extends FrameLayout implements View.OnClickListener {
 
     private void init(Activity activity, View anchorView, String text, Drawable drawable) {
         mContentView = activity.getWindow().getDecorView().findViewById(android.R.id.content);
+        mAnchorView = anchorView;
+
+        initViews(activity, text, drawable);
+        initSize(text);
 
         mParams = new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
         mParams.gravity = Gravity.BOTTOM;
-        setLayoutParams(mParams);
+
+        int[] l = new int[2];
+        anchorView.getLocationInWindow(l);
+
+        mParams.bottomMargin = getScreenHeight() - l[1];
 
         int padding = dp2px(DEFAULT_PADDING);
         setPadding(padding, 0, padding, padding);
+        setLayoutParams(mParams);
 
-        initViews(activity, text, drawable);
-
-        mAnchorView = anchorView;
-
-        mRadius = dp2px(DEFAULT_RADIUS);
         mOffset = dp2px(DEFAULT_OFFSET);
 
         mBorderPaint = new Paint();
@@ -88,18 +100,33 @@ public class Bubble extends FrameLayout implements View.OnClickListener {
         setLayerType(LAYER_TYPE_SOFTWARE, null);
     }
 
+    private void initSize(String text) {
+        mTextWidth = new TextPaint().measureText(text);
+        int totalWidth = DEFAULT_IMAGE_WIDTH
+                + DEFAULT_TEXT_MARGIN * 2
+                + DEFAULT_BUTTON_WIDTH
+                + DEFAULT_PADDING * 2
+                + (int)mTextWidth;
+        int screenWidth = getScreenWidth();
+        if (totalWidth > screenWidth) {
+            mTextWidth = mTextWidth - (screenWidth - totalWidth);
+            mBubbleText.setWidth((int) mTextWidth);
+        }
+    }
+
     private void initViews(Context context, String text, Drawable drawable) {
 
         View view = LayoutInflater.from(context).inflate(R.layout.bubble_layout, this);
-        ImageView bubbleImage = view.findViewById(R.id.bubble_image);
+        mBubbleImage = view.findViewById(R.id.bubble_image);
         if (drawable != null) {
-            bubbleImage.setImageDrawable(drawable);
-            bubbleImage.setVisibility(VISIBLE);
+            mBubbleImage.setImageDrawable(drawable);
+            mBubbleImage.setVisibility(VISIBLE);
         }
-        TextView bubbleText = view.findViewById(R.id.bubble_text);
-        bubbleText.setText(text);
-        ImageView closeButton = view.findViewById(R.id.close_button);
-        closeButton.setOnClickListener(this);
+        mBubbleText = view.findViewById(R.id.bubble_text);
+        mBubbleText.setText(text);
+
+        mCloseButton = view.findViewById(R.id.close_button);
+        mCloseButton.setOnClickListener(this);
     }
 
     @Override
@@ -114,7 +141,9 @@ public class Bubble extends FrameLayout implements View.OnClickListener {
             return;
         }
 
-        mPath.addRoundRect(mRect, mRadius, mRadius, Path.Direction.CCW);
+        int radius = dp2px(DEFAULT_RADIUS);
+
+        mPath.addRoundRect(mRect, radius, radius, Path.Direction.CCW);
         mPath.moveTo(mDatumPoint.x + triangularLength / 2, mDatumPoint.y);
         mPath.lineTo(mDatumPoint.x, mDatumPoint.y + triangularLength / 2);
         mPath.lineTo(mDatumPoint.x - triangularLength / 2, mDatumPoint.y);
@@ -178,7 +207,7 @@ public class Bubble extends FrameLayout implements View.OnClickListener {
         if (reference != null && reference.get() != null) {
             reference.get().close();
         }
-        mContentView.addView(this);
+        mContentView.addView(this, mParams);
         reference = new WeakReference<>(this);
     }
 
@@ -194,13 +223,15 @@ public class Bubble extends FrameLayout implements View.OnClickListener {
         return outMetrics.heightPixels;
     }
 
+    public int getScreenWidth() {
+        WindowManager wm = (WindowManager) getContext().getSystemService(Context.WINDOW_SERVICE);
+        DisplayMetrics outMetrics = new DisplayMetrics();
+        wm.getDefaultDisplay().getMetrics(outMetrics);
+        return outMetrics.widthPixels;
+    }
+
     private int dp2px(float dipValue) {
         final float scale = getContext().getResources().getDisplayMetrics().density;
         return (int) (dipValue * scale + 0.5f);
-    }
-
-    public void move() {
-        mParams.topMargin += 200;
-        setLayoutParams(mParams);
     }
 }
